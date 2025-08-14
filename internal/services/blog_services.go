@@ -1,11 +1,8 @@
 package services
 
 import (
-	"context"
 	"log"
-	"time"
 
-	"goserver/internal/database"
 	"goserver/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -14,10 +11,8 @@ import (
 )
 
 func GetAllBlogs() ([]models.Blog, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	collection, ctx, cancel := GetCollectionAndContext("blogs")
 	defer cancel()
-
-	collection := database.MongoClient.Database("edandlinda").Collection("blogs")
 
 	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
@@ -43,10 +38,8 @@ func GetAllBlogs() ([]models.Blog, error) {
 }
 
 func GetBlogByID(id string) (*models.Blog, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	collection, ctx, cancel := GetCollectionAndContext("blogs")
 	defer cancel()
-
-	collection := database.MongoClient.Database("edandlinda").Collection("blogs")
 
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -63,10 +56,8 @@ func GetBlogByID(id string) (*models.Blog, error) {
 
 // SaveBlog creates a new blog or updates an existing one based on blog_id
 func SaveBlog(data *models.Blog) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	collection, ctx, cancel := GetCollectionAndContext("blogs")
 	defer cancel()
-
-	collection := database.MongoClient.Database("edandlinda").Collection("blogs")
 
 	if data.ID != primitive.NilObjectID {
 		// Update existing blog
@@ -104,10 +95,8 @@ func SaveBlog(data *models.Blog) (string, error) {
 
 // DeleteBlog deletes a blog by its ID
 func DeleteBlog(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	collection, ctx, cancel := GetCollectionAndContext("blogs")
 	defer cancel()
-
-	collection := database.MongoClient.Database("edandlinda").Collection("blogs")
 
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {

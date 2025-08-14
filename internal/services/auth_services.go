@@ -1,11 +1,8 @@
 package services
 
 import (
-	"context"
 	"errors"
-	"goserver/internal/database"
 	"goserver/internal/models"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -58,10 +55,8 @@ func LoginUser(userName, userPassword string) (*models.User, []ValidationError, 
 
 // Dummy GetUser for illustration; replace with real DB logic
 func GetUser(userName, userPassword string) (*models.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	collection, ctx, cancel := GetCollectionAndContext("users")
 	defer cancel()
-
-	collection := database.MongoClient.Database("edandlinda").Collection("users")
 
 	var user models.User
 	err := collection.FindOne(ctx, bson.M{

@@ -80,10 +80,10 @@ func main() {
 		commentHandler := handlers.NewCommentHandler()
 		commentRoutes := api.Group("/comments")
 		{
-			commentRoutes.GET("/blog/:blogId", commentHandler.GetByBlogID)
-			commentRoutes.POST("/blog/:blogId", middleware.RequireAuth(), middleware.RequireRole("Commentor", "Creator", "Admin"), commentHandler.Create)
-			commentRoutes.PUT("/blog/:blogId/:id", middleware.RequireAuth(), middleware.RequireRole("Creator", "Admin"), commentHandler.Update)
-			commentRoutes.DELETE("/blog/:blogId/:id", middleware.RequireAuth(), middleware.RequireRole("Creator", "Admin"), commentHandler.Delete)
+			commentRoutes.GET("/:blogId", commentHandler.GetByBlogID)
+			commentRoutes.POST("/:blogId", middleware.RequireAuth(), middleware.RequireRole("Commentor", "Creator", "Admin"), commentHandler.Create)
+			commentRoutes.PUT("/:blogId/:id", middleware.RequireAuth(), middleware.RequireRole("Creator", "Admin"), commentHandler.Update)
+			commentRoutes.DELETE("/:blogId/:id", middleware.RequireAuth(), middleware.RequireRole("Creator", "Admin"), commentHandler.Delete)
 		}
 
 		userHandler := handlers.NewUserHandler()
