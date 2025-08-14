@@ -25,7 +25,7 @@ func main() {
 		origin := c.Request.Header.Get("Origin")
 		c.Header("Access-Control-Allow-Origin", "http://localhost:3001")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "*")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
 		c.Header("Access-Control-Allow-Credentials", "true")
 
 		log.Printf("CORS headers set for origin: %s", origin)
@@ -89,12 +89,11 @@ func main() {
 		userHandler := handlers.NewUserHandler()
 		userRoutes := api.Group("/users")
 		{
-			userRoutes.GET("", middleware.RequireAuth(), middleware.RequireRole("admin"), userHandler.GetAll)
-			userRoutes.GET("/", middleware.RequireAuth(), middleware.RequireRole("admin"), userHandler.GetAll)
+			userRoutes.GET("/", middleware.RequireAuth(), middleware.RequireRole("Admin"), userHandler.GetAll)
 			userRoutes.GET("/:id", userHandler.GetByID)
 			userRoutes.POST("", userHandler.Create)
-			userRoutes.PUT("/:id", middleware.RequireAuth(), middleware.RequireRole("admin"), userHandler.Update)
-			userRoutes.DELETE("/:id", middleware.RequireAuth(), middleware.RequireRole("admin"), userHandler.Delete)
+			userRoutes.PUT("/:id", middleware.RequireAuth(), middleware.RequireRole("Admin"), userHandler.Update)
+			userRoutes.DELETE("/:id", middleware.RequireAuth(), middleware.RequireRole("Admin"), userHandler.Delete)
 		}
 	}
 
