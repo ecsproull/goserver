@@ -95,6 +95,15 @@ func main() {
 			userRoutes.PUT("/:id", middleware.RequireAuth(), middleware.RequireRole("Admin"), userHandler.Update)
 			userRoutes.DELETE("/:id", middleware.RequireAuth(), middleware.RequireRole("Admin"), userHandler.Delete)
 		}
+
+		placeHandler := handlers.NewPlaceHandler()
+		placeRoutes := router.Group("/api/v1/places")
+		{
+			placeRoutes.GET("/", placeHandler.GetPlaces)
+			placeRoutes.POST("/", placeHandler.SavePlace)
+			placeRoutes.PUT("/:id", placeHandler.UpdatePlace)
+			placeRoutes.DELETE("/:id", placeHandler.DeletePlace)
+		}
 	}
 
 	// Health check
