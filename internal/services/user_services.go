@@ -76,12 +76,12 @@ func CreateUser(user *models.User) error {
 	collection := database.MongoClient.Database("edandlinda").Collection("users")
 
 	// Check if email already exists
-	if user.UserEmail == "" {
+	if user.Email == "" {
 		return errors.New("email is required")
 	}
 
 	var existingUser models.User
-	err := collection.FindOne(ctx, bson.M{"user_email": user.UserEmail}).Decode(&existingUser)
+	err := collection.FindOne(ctx, bson.M{"user_email": user.Email}).Decode(&existingUser)
 	if err == nil {
 		return errors.New("email already in use")
 	} else if err != mongo.ErrNoDocuments {
@@ -89,7 +89,7 @@ func CreateUser(user *models.User) error {
 	}
 
 	// Check if username already exists
-	err = collection.FindOne(ctx, bson.M{"user_name": user.UserName}).Decode(&existingUser)
+	err = collection.FindOne(ctx, bson.M{"user_name": user.Name}).Decode(&existingUser)
 	if err == nil {
 		return errors.New("username already in use")
 	} else if err != mongo.ErrNoDocuments {
@@ -97,8 +97,8 @@ func CreateUser(user *models.User) error {
 	}
 
 	// Generate verification code
-	user.UserVerifyCode = uuid.New().String()
-	user.UserApproved = false // Default to false until verified
+	user.VerifyCode = uuid.New().String()
+	user.Approved = false // Default to false until verified
 
 	// Set default role if not provided
 	if user.Role == "" {
@@ -106,14 +106,14 @@ func CreateUser(user *models.User) error {
 	}
 
 	// Set verify expiration (24 hours from now)
-	user.UserVerifyExpires = time.Now().Add(24 * time.Hour)
+	user.VerifyExpires = time.Now().Add(24 * time.Hour)
 
 	// Hash password
-	salt, err := bcrypt.GenerateFromPassword([]byte(user.UserPassword), bcrypt.DefaultCost)
+	salt, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return fmt.Errorf("error hashing password: %v", err)
 	}
-	user.UserPassword = string(salt)
+	user.Password = string(salt)
 
 	// Set timestamps
 	user.CreatedAt = time.Now()
@@ -134,7 +134,11 @@ func CreateUser(user *models.User) error {
 		user.ID = oid
 	}
 
-	fmt.Printf("Saved User: %s\n", user.UserName)
+	go func(u *models.User) {
+		_ = SendVerificationEmail(u.Email, u.Name, u.VerifyCode)
+	}(user)
+
+	fmt.Printf("Saved User: %s\n", user.Name)
 	return nil
 }
 
@@ -154,8 +158,8 @@ func UpdateUser(id string, user *models.User) error {
 	updateDoc := bson.M{}
 
 	// If password is being updated, hash it
-	if user.UserPassword != "" {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.UserPassword), bcrypt.DefaultCost)
+	if user.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return fmt.Errorf("error hashing password: %v", err)
 		}
@@ -163,17 +167,17 @@ func UpdateUser(id string, user *models.User) error {
 	}
 
 	// Add other fields to update (exclude empty values)
-	if user.UserName != "" {
-		updateDoc["user_name"] = user.UserName
+	if user.Name != "" {
+		updateDoc["user_name"] = user.Name
 	}
-	if user.UserEmail != "" {
-		updateDoc["user_email"] = user.UserEmail
+	if user.Email != "" {
+		updateDoc["user_email"] = user.Email
 	}
 	if user.Role != "" {
 		updateDoc["role"] = user.Role
 	}
-	// Add UserApproved even if false (it's a boolean)
-	updateDoc["user_approved"] = user.UserApproved
+	// Add Approved even if false (it's a boolean)
+	updateDoc["user_approved"] = user.Approved
 
 	// Set updated timestamp
 	updateDoc["updatedAt"] = time.Now()
@@ -193,7 +197,7 @@ func UpdateUser(id string, user *models.User) error {
 		return errors.New("user not found")
 	}
 
-	fmt.Printf("Updated User: %s\n", user.UserName)
+	fmt.Printf("Updated User: %s\n", user.Name)
 	return nil
 }
 
@@ -221,4 +225,40 @@ func DeleteUser(id string) error {
 
 	fmt.Printf("Deleted user with ID: %s\n", id)
 	return nil
+}
+
+func VerifyUserEmail(code string) (*models.User, error) {
+	collection, ctx, cancel := GetCollectionAndContext("users")
+	defer cancel()
+
+	var user models.User
+	err := collection.FindOne(ctx, bson.M{"user_verify_code": code}).Decode(&user)
+	if err != nil {
+		return nil, errors.New("invalid or expired verification code")
+	}
+
+	// Check if verification code has expired
+	if !user.VerifyExpires.IsZero() && time.Now().After(user.VerifyExpires) {
+		return nil, errors.New("verification code has expired")
+	}
+
+	// Approve user and clear verification code
+	update := bson.M{
+		"$set": bson.M{
+			"approved":       true,
+			"verify_code":    nil,
+			"verify_expires": nil,
+		},
+	}
+	_, err = collection.UpdateByID(ctx, user.ID, update)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update user struct to reflect changes
+	user.Approved = true
+	user.VerifyCode = ""
+	user.VerifyExpires = time.Time{}
+
+	return &user, nil
 }

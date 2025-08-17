@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"goserver/internal/models"
+	"goserver/internal/services"
 	"net/http"
 	"os"
 	"strings"
@@ -35,13 +36,21 @@ func RequireAuth() gin.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			// Example: extract "roles" from claims
+
 			if roles, ok := claims["role"]; ok {
 				c.Set("roles", roles)
 			}
-			// You can also set user ID, email, etc. if present in claims
-			if userID, ok := claims["sub"]; ok {
+
+			if userID, ok := claims["user"]; ok {
 				c.Set("userID", userID)
+
+				idStr, ok := userID.(string)
+				if ok {
+					user, err := services.GetUserByID(idStr)
+					if err == nil && user != nil {
+						c.Set("user", user)
+					}
+				}
 			}
 		}
 

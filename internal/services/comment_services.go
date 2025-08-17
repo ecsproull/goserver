@@ -10,6 +10,26 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+func GetBlogCommentByID(commentID string) (*models.Comment, error) {
+	collection, ctx, cancel := GetCollectionAndContext("comments")
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(commentID)
+	if err != nil {
+		return nil, err
+	}
+
+	var comment models.Comment
+	err = collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&comment)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &comment, nil
+}
+
 func GetCommentsByBlogID(blogID string) ([]models.Comment, error) {
 	collection, ctx, cancel := GetCollectionAndContext("comments")
 	defer cancel()

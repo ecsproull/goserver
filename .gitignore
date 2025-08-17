@@ -12,6 +12,7 @@
 /build/
 /bin/
 /dist/
+/DiscoveryDrawings/
 
 # Dependency directories (if you use vendoring)
 /vendor/

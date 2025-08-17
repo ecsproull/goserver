@@ -3,7 +3,10 @@ package services
 import (
 	"errors"
 	"goserver/internal/models"
+	"os"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
@@ -46,7 +49,7 @@ func LoginUser(userName, userPassword string) (*models.User, []ValidationError, 
 	}
 
 	// Check if user is approved (email verified)
-	if !foundUser.UserApproved {
+	if !foundUser.Approved {
 		return nil, nil, errors.New("please verify your email address before logging in")
 	}
 
@@ -71,9 +74,22 @@ func GetUser(userName, userPassword string) (*models.User, error) {
 	}
 
 	// Compare the provided password with the hashed password in the database
-	if bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(userPassword)) != nil {
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userPassword)) != nil {
 		return nil, nil // Password does not match
 	}
 
 	return &user, nil
+}
+
+func GenerateAccessToken(user *models.User) (string, error) {
+	claims := jwt.MapClaims{
+		"user_name": user.Name,
+		"user":      user.ID,
+		"role":      user.Role,
+		"exp":       time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	secret := os.Getenv("JWT_SECRET")
+	return token.SignedString([]byte(secret))
 }

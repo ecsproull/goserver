@@ -80,3 +80,44 @@ func (h *UserHandler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
+
+func (h *UserHandler) VerifyEmail(c *gin.Context) {
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Verification code is required"})
+		return
+	}
+
+	user, err := services.VerifyUserEmail(req.Code)
+	if err != nil {
+		if err.Error() == "verification code has expired" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "Verification code has expired. Please request a new one.",
+				"expired": true,
+			})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Generate access token (implement your own token generation logic)
+	accessToken, tokenErr := services.GenerateAccessToken(user)
+	if tokenErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": tokenErr.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Email verified successfully. You are now logged in.",
+		"accessToken": accessToken,
+		"user": gin.H{
+			"id":         user.ID.Hex(),
+			"user_name":  user.Name,
+			"user_email": user.Email,
+			"role":       user.Role,
+		},
+	})
+}
