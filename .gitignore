@@ -9,6 +9,7 @@
 
 # Output of go build
 /goserver
+/goserver_prod
 /build/
 /bin/
 /dist/
