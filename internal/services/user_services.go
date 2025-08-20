@@ -260,5 +260,6 @@ func VerifyUserEmail(code string) (*models.User, error) {
 	user.VerifyCode = ""
 	user.VerifyExpires = time.Time{}
 
+	SendWelcomeEmail(user.Email, user.Name)
 	return &user, nil
 }

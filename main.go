@@ -18,6 +18,7 @@ func main() {
 	database.InitMongo(cfg.DatabaseURL)
 
 	r := router.SetupRouter(cfg)
+	r.SetTrustedProxies([]string{"127.0.0.1"})
 
 	port := cfg.Port
 	if port == "" {
