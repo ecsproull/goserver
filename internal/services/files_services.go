@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 const BASE_PATH = "DiscoveryDrawings" // Adjust this path as needed
@@ -162,26 +164,55 @@ func GetModels(yearMake string) ([]string, error) {
 	return models, nil
 }
 
-// Add a helper function to calculate directory size
+// calculateDirectorySize uses goroutines to calculate directory size in parallel
 func calculateDirectorySize(dirPath string) (int64, int64) {
 	var totalSize int64
 	var fileCount int64
+	var wg sync.WaitGroup
 
-	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil // Skip files we can't access
-		}
-		if !info.IsDir() {
-			totalSize += info.Size()
-			fileCount++
-		}
-		return nil
-	})
-
+	// Get entries in the directory
+	entries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return 0, 0 // Return 0 if we can't calculate size
+		return 0, 0
 	}
 
+	// Process each top-level entry in a separate goroutine
+	for _, entry := range entries {
+		wg.Add(1)
+		go func(e os.DirEntry) {
+			defer wg.Done()
+
+			entryPath := filepath.Join(dirPath, e.Name())
+
+			if e.IsDir() {
+				// For directories, walk them
+				err := filepath.Walk(entryPath, func(path string, info os.FileInfo, err error) error {
+					if err != nil {
+						return nil // Skip files we can't access
+					}
+					if !info.IsDir() {
+						atomic.AddInt64(&totalSize, info.Size())
+						atomic.AddInt64(&fileCount, 1)
+					}
+					return nil
+				})
+
+				if err != nil {
+					// Just continue if there's an error
+				}
+			} else {
+				// For files, get size directly
+				info, err := e.Info()
+				if err != nil {
+					return
+				}
+				atomic.AddInt64(&totalSize, info.Size())
+				atomic.AddInt64(&fileCount, 1)
+			}
+		}(entry)
+	}
+
+	wg.Wait()
 	return totalSize, fileCount
 }
 
