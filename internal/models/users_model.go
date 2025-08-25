@@ -1,5 +1,6 @@
 package models
 
+/*
 import (
 	"time"
 
@@ -31,3 +32,4 @@ type User struct {
 	CreatedAt     time.Time          `json:"createdAt" bson:"createdAt,omitempty"`
 	UpdatedAt     time.Time          `json:"updatedAt" bson:"updatedAt,omitempty"`
 }
+*/

@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"fmt"
 	"goserver/internal/models"
 	"goserver/internal/services"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -29,19 +30,19 @@ func (h *CommentHandler) GetByBlogID(c *gin.Context) {
 func (h *CommentHandler) Create(c *gin.Context) {
 	blogID := c.Param("blogId")
 
-	var comment models.Comment
+	var comment models.DbComment
 	if err := c.ShouldBindJSON(&comment); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Set the BlogID field (assuming it's an ObjectID in your model)
-	objID, err := primitive.ObjectIDFromHex(blogID)
+	// Convert string blogID to int for PostgreSQL
+	blogIDInt, err := strconv.Atoi(blogID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid blog ID"})
 		return
 	}
-	comment.BlogID = objID
+	comment.BlogID = blogIDInt
 
 	id, err := services.AddComment(&comment)
 	if err != nil {
@@ -51,7 +52,7 @@ func (h *CommentHandler) Create(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Comment created successfully",
-		"id":      id.Hex(),
+		"id":      id,
 		"blogId":  blogID,
 	})
 }
@@ -66,14 +67,19 @@ func (h *CommentHandler) Update(c *gin.Context) {
 		return
 	}
 
-	err := services.UpdateComment(blogID, id, updateData)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Comment not found"})
+	// Access specific fields
+	if body, exists := updateData["comment_body"]; exists {
+		bodyStr := body.(string) // Type assertion
+		fmt.Printf("Updating body to: %s\n", bodyStr)
+		err := services.UpdateComment(blogID, id, bodyStr)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Comment not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{

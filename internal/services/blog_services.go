@@ -1,53 +1,44 @@
 package services
 
 import (
+	"fmt"
 	"log"
+	"strconv"
 
+	"goserver/internal/database"
 	"goserver/internal/models"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func GetAllBlogs() ([]models.Blog, error) {
-	collection, ctx, cancel := GetCollectionAndContext("blogs")
-	defer cancel()
+func GetAllBlogs() ([]models.DbBlog, error) {
+	var blogs []models.DbBlog
 
-	cursor, err := collection.Find(ctx, bson.M{})
+	query := `
+        SELECT id, blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category
+        FROM blogs
+    `
+
+	err := database.DB.Select(&blogs, query)
 	if err != nil {
-		return nil, err
-	}
-
-	defer cursor.Close(ctx)
-
-	var blogs []models.Blog
-	for cursor.Next(ctx) {
-		var blog models.Blog
-		if err := cursor.Decode(&blog); err != nil {
-			return nil, err
-		}
-		blogs = append(blogs, blog)
-	}
-
-	if err := cursor.Err(); err != nil {
 		return nil, err
 	}
 
 	return blogs, nil
 }
 
-func GetBlogByID(id string) (*models.Blog, error) {
-	collection, ctx, cancel := GetCollectionAndContext("blogs")
-	defer cancel()
-
-	objID, err := primitive.ObjectIDFromHex(id)
+func GetBlogByID(id string) (*models.DbBlog, error) {
+	blogID, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
 
-	var blog models.Blog
-	err = collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&blog)
+	var blog models.DbBlog
+	query := `
+        SELECT id, blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category
+        FROM blogs 
+        WHERE id = $1
+    `
+
+	err = database.DB.Get(&blog, query, blogID)
 	if err != nil {
 		return nil, nil // Not found or decode error
 	}
@@ -55,60 +46,77 @@ func GetBlogByID(id string) (*models.Blog, error) {
 }
 
 // SaveBlog creates a new blog or updates an existing one based on blog_id
-func SaveBlog(data *models.Blog) (string, error) {
-	collection, ctx, cancel := GetCollectionAndContext("blogs")
-	defer cancel()
-
-	if data.ID != primitive.NilObjectID {
+func SaveBlog(data *models.DbBlog) (string, error) {
+	if data.ID != 0 {
 		// Update existing blog
-		blogID := data.ID
-		updateData := *data
-		updateData.ID = primitive.NilObjectID // Don't update the ID field
+		query := `
+            UPDATE blogs 
+            SET blog_subject = $1, blog_body = $2, blog_owner_name = $3, blog_owner_email = $4, blog_category = $5, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $6
+            RETURNING id, blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category
+        `
 
-		update := bson.M{
-			"$set": updateData,
-		}
+		var updatedBlog models.DbBlog
+		_, err := database.DB.Exec(query,
+			data.Title,
+			data.Content,
+			data.AuthorID,
+			data.Email,
+			data.Category,
+			data.ID,
+		)
 
-		result := collection.FindOneAndUpdate(ctx, bson.M{"_id": blogID}, update)
-
-		var updatedBlog models.Blog
-		if err := result.Decode(&updatedBlog); err != nil {
-			return "", err
-		}
-		log.Printf("Saved Blog: %s", updatedBlog.Subject)
-		return updatedBlog.ID.Hex(), nil
-	} else {
-		// Create new blog
-		log.Printf("Creating new blog post.")
-		data.ID = primitive.NewObjectID()
-		res, err := collection.InsertOne(ctx, data)
 		if err != nil {
 			return "", err
 		}
-		log.Printf("Saved Blog: %s", data.Subject)
-		if oid, ok := res.InsertedID.(primitive.ObjectID); ok {
-			return oid.Hex(), nil
+		log.Printf("Saved Blog: %s", updatedBlog.Title)
+		return strconv.Itoa(data.ID), nil
+	} else {
+		// Create new blog
+		log.Printf("Creating new blog post.")
+		query := `
+            INSERT INTO blogs (blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category) 
+            VALUES ($1, $2, $3, $4, $5) 
+            RETURNING id
+        `
+
+		err := database.DB.QueryRowx(query,
+			data.Title,
+			data.Content,
+			data.AuthorID,
+			data.Email,
+			data.Category,
+		).Scan(&data.ID)
+
+		if err != nil {
+			return "", err
 		}
-		return "", nil
+		log.Printf("Saved Blog: %s", data.Title)
+		return strconv.Itoa(data.ID), nil
 	}
 }
 
 // DeleteBlog deletes a blog by its ID
 func DeleteBlog(id string) error {
-	collection, ctx, cancel := GetCollectionAndContext("blogs")
-	defer cancel()
-
-	objID, err := primitive.ObjectIDFromHex(id)
+	blogID, err := strconv.Atoi(id)
 	if err != nil {
 		return err
 	}
 
-	result, err := collection.DeleteOne(ctx, bson.M{"_id": objID})
+	query := `DELETE FROM blogs WHERE id = $1`
+
+	result, err := database.DB.Exec(query, blogID)
 	if err != nil {
 		return err
 	}
-	if result.DeletedCount == 0 {
-		return mongo.ErrNoDocuments
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("blog not found")
 	}
 	return nil
 }

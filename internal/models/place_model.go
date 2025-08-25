@@ -1,5 +1,6 @@
 package models
 
+/*
 import (
 	"time"
 
@@ -21,3 +22,4 @@ type Place struct {
 	PlaceHideInfo BoolInt            `bson:"place_hide_info" json:"place_hide_info"`
 	PlaceEmail    string             `bson:"place_email" json:"place_email"`
 }
+*/

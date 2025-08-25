@@ -4,6 +4,7 @@ import (
 	"goserver/internal/models"
 	"goserver/internal/services"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,7 +27,7 @@ func (h *PlaceHandler) GetPlaces(c *gin.Context) {
 
 // POST /api/v1/places
 func (h *PlaceHandler) SavePlace(c *gin.Context) {
-	var place models.Place
+	var place models.DbPlace
 	if err := c.ShouldBindJSON(&place); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -41,12 +42,20 @@ func (h *PlaceHandler) SavePlace(c *gin.Context) {
 // PUT /api/v1/places/:id
 func (h *PlaceHandler) UpdatePlace(c *gin.Context) {
 	id := c.Param("id")
-	var updateData map[string]interface{}
-	if err := c.ShouldBindJSON(&updateData); err != nil {
+
+	var place models.DbPlace
+	if err := c.ShouldBindJSON(&place); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	updated, err := services.UpdatePlace(id, updateData)
+
+	placeID, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	place.ID = placeID
+	updated, err := services.UpdatePlace(&place)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return

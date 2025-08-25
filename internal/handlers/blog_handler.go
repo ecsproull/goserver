@@ -38,7 +38,7 @@ func (h *BlogHandler) GetByID(c *gin.Context) {
 }
 
 func (h *BlogHandler) Create(c *gin.Context) {
-	var blog models.Blog
+	var blog models.DbBlog
 	if err := c.ShouldBindJSON(&blog); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -2,13 +2,12 @@ package services
 
 import (
 	"errors"
+	"goserver/internal/database"
 	"goserver/internal/models"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -34,7 +33,7 @@ func ValidateLoginInput(userName, userPassword string) []ValidationError {
 }
 
 // LoginUser handles user authentication and approval check
-func LoginUser(userName, userPassword string) (*models.User, []ValidationError, error) {
+func LoginUser(userName, userPassword string) (*models.DbUser, []ValidationError, error) {
 	// Validate input
 	validationErrors := ValidateLoginInput(userName, userPassword)
 
@@ -48,6 +47,10 @@ func LoginUser(userName, userPassword string) (*models.User, []ValidationError, 
 		return nil, nil, err
 	}
 
+	if foundUser == nil {
+		return nil, nil, errors.New("invalid username or password")
+	}
+
 	// Check if user is approved (email verified)
 	if !foundUser.Approved {
 		return nil, nil, errors.New("please verify your email address before logging in")
@@ -56,21 +59,19 @@ func LoginUser(userName, userPassword string) (*models.User, []ValidationError, 
 	return foundUser, nil, nil
 }
 
-// Dummy GetUser for illustration; replace with real DB logic
-func GetUser(userName, userPassword string) (*models.User, error) {
-	collection, ctx, cancel := GetCollectionAndContext("users")
-	defer cancel()
+// GetUser authenticates user with PostgreSQL database
+func GetUser(userName, userPassword string) (*models.DbUser, error) {
+	var user models.DbUser
 
-	var user models.User
-	err := collection.FindOne(ctx, bson.M{
-		"user_name": userName,
-	}).Decode(&user)
+	query := `
+        SELECT id, user_name, user_password, user_email, user_role, user_approved
+        FROM users 
+        WHERE user_name = $1
+    `
 
-	if err == mongo.ErrNoDocuments {
-		return nil, nil // User not found
-	}
+	err := database.DB.Get(&user, query, userName)
 	if err != nil {
-		return nil, err
+		return nil, nil // User not found or database error
 	}
 
 	// Compare the provided password with the hashed password in the database
@@ -81,9 +82,10 @@ func GetUser(userName, userPassword string) (*models.User, error) {
 	return &user, nil
 }
 
-func GenerateAccessToken(user *models.User) (string, error) {
+// GenerateAccessToken creates a JWT token for the authenticated user
+func GenerateAccessToken(user *models.DbUser) (string, error) {
 	claims := jwt.MapClaims{
-		"user_name": user.Name,
+		"user_name": user.Username,
 		"user":      user.ID,
 		"role":      user.Role,
 		"exp":       time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours

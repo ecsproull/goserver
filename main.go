@@ -15,16 +15,19 @@ func main() {
 		log.Println("No .env file found or error loading .env file")
 	}
 	cfg := config.Load()
-	database.InitMongo(cfg.DatabaseURL)
 
-	r := router.SetupRouter(cfg)
+	// Connect to PostgreSQL database
+	if err := database.ConnectDatabase(); err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	} else {
+		log.Println("Database connection established")
+	}
+	defer database.CloseDatabase()
+
+	r := router.SetupRouter()
 	r.SetTrustedProxies([]string{"127.0.0.1"})
 
-	port := cfg.Port
-	if port == "" {
-		port = "3003"
-	}
+	log.Printf("Server starting on port %s", cfg.Port)
+	log.Fatal(r.Run(cfg.Port))
 
-	log.Printf("Server starting on port %s", port)
-	log.Fatal(r.Run(":" + port))
 }

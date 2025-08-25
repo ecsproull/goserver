@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"fmt"
 	"goserver/internal/models"
 	"goserver/internal/services"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +26,13 @@ func (h *UserHandler) GetAll(c *gin.Context) {
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
-	id := c.Param("id")
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid user ID: %v", err)})
+		return
+	}
+
 	user, err := services.GetUserByID(id)
 	if err != nil || user == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
@@ -34,7 +42,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
-	var user models.User
+	var user models.DbUser
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -47,8 +55,13 @@ func (h *UserHandler) Create(c *gin.Context) {
 }
 
 func (h *UserHandler) Update(c *gin.Context) {
-	id := c.Param("id")
-	var user models.User
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid user ID: %v", err)})
+		return
+	}
+	var user models.DbUser
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -67,8 +80,12 @@ func (h *UserHandler) Update(c *gin.Context) {
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {
-	id := c.Param("id")
-
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid user ID: %v", err)})
+		return
+	}
 	if err := services.DeleteUser(id); err != nil {
 		if err.Error() == "user not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
@@ -114,8 +131,8 @@ func (h *UserHandler) VerifyEmail(c *gin.Context) {
 		"message":     "Email verified successfully. You are now logged in.",
 		"accessToken": accessToken,
 		"user": gin.H{
-			"id":         user.ID.Hex(),
-			"user_name":  user.Name,
+			"id":         user.ID,
+			"user_name":  user.Username,
 			"user_email": user.Email,
 			"role":       user.Role,
 		},

@@ -1,7 +1,6 @@
 package router
 
 import (
-	"goserver/internal/config"
 	"goserver/internal/handlers"
 	"goserver/internal/middleware"
 	"log"
@@ -10,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(cfg *config.Config) *gin.Engine {
+func SetupRouter() *gin.Engine {
 	router := gin.Default()
 
 	// CORS middleware

@@ -1,137 +1,127 @@
 package services
 
 import (
-	"time"
+	"fmt"
+	"strconv"
 
+	"goserver/internal/database"
 	"goserver/internal/models"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func GetBlogCommentByID(commentID string) (*models.Comment, error) {
-	collection, ctx, cancel := GetCollectionAndContext("comments")
-	defer cancel()
-
-	objID, err := primitive.ObjectIDFromHex(commentID)
+func GetBlogCommentByID(commentID string) (*models.DbComment, error) {
+	id, err := strconv.Atoi(commentID)
 	if err != nil {
 		return nil, err
 	}
 
-	var comment models.Comment
-	err = collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&comment)
+	var comment models.DbComment
+	query := `
+        SELECT id, comment_blog_id, comment_name, comment_email, comment_body, comment_approved
+        FROM comments 
+        WHERE id = $1
+    `
+
+	err = database.DB.Get(&comment, query, id)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, nil
-		}
-		return nil, err
+		return nil, nil // Not found or decode error
 	}
 	return &comment, nil
 }
 
-func GetCommentsByBlogID(blogID string) ([]models.Comment, error) {
-	collection, ctx, cancel := GetCollectionAndContext("comments")
-	defer cancel()
-
-	objID, err := primitive.ObjectIDFromHex(blogID)
+func GetCommentsByBlogID(blogID string) ([]models.DbComment, error) {
+	id, err := strconv.Atoi(blogID)
 	if err != nil {
 		return nil, err
 	}
 
-	filter := bson.M{"blog_id": objID}
+	var comments []models.DbComment
+	query := `
+        SELECT id, comment_blog_id, comment_name, comment_email, comment_body, comment_approved
+        FROM comments 
+        WHERE comment_blog_id = $1
+        ORDER BY created_at ASC
+    `
 
-	cursor, err := collection.Find(ctx, filter)
+	err = database.DB.Select(&comments, query, id)
 	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var comments []models.Comment
-	for cursor.Next(ctx) {
-		var comment models.Comment
-		if err := cursor.Decode(&comment); err != nil {
-			return nil, err
-		}
-		comments = append(comments, comment)
-	}
-	if err := cursor.Err(); err != nil {
 		return nil, err
 	}
 	return comments, nil
 }
 
-// AddComment adds a new comment to the comments collection
-func AddComment(comment *models.Comment) (primitive.ObjectID, error) {
-	collection, ctx, cancel := GetCollectionAndContext("comments")
-	defer cancel()
+// AddComment adds a new comment to the comments table
+func AddComment(comment *models.DbComment) (int, error) {
+	query := `
+        INSERT INTO comments (comment_blog_id, comment_name, comment_email, comment_body, comment_approved) 
+        VALUES ($1, $2, $3, $4, $5) 
+        RETURNING id, created_at, updated_at
+    `
 
-	// Set the comment ID and CreatedAt
-	comment.ID = primitive.NewObjectID()
-	comment.CreatedAt = time.Now()
+	err := database.DB.QueryRowx(query,
+		comment.BlogID,
+		comment.Name,
+		comment.Email,
+		comment.Body,
+		comment.Approved,
+	).Scan(&comment.ID, &comment.CreatedAt, &comment.UpdatedAt)
 
-	res, err := collection.InsertOne(ctx, comment)
 	if err != nil {
-		return primitive.NilObjectID, err
+		return 0, err
 	}
-	if oid, ok := res.InsertedID.(primitive.ObjectID); ok {
-		return oid, nil
-	}
-	return primitive.NilObjectID, nil
+	return comment.ID, nil
 }
 
 // UpdateComment updates a comment by its ID and blog ID
-func UpdateComment(blogID, commentID string, updateData map[string]interface{}) error {
-	collection, ctx, cancel := GetCollectionAndContext("comments")
-	defer cancel()
-
-	blogObjID, err := primitive.ObjectIDFromHex(blogID)
+func UpdateComment(blogID, commentID string, newText string) error {
+	bID, err := strconv.Atoi(blogID)
 	if err != nil {
 		return err
 	}
-	commentObjID, err := primitive.ObjectIDFromHex(commentID)
+	cID, err := strconv.Atoi(commentID)
 	if err != nil {
 		return err
 	}
 
-	// Remove fields that should not be updated
-	delete(updateData, "_id")
-	delete(updateData, "blog_id")
+	// Use parameterized query to avoid SQL injection
+	query := `
+        UPDATE comments 
+        SET comment_body = $1, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = $2 AND comment_blog_id = $3
+    `
 
-	filter := bson.M{"_id": commentObjID, "blog_id": blogObjID}
-	update := bson.M{"$set": updateData}
-
-	result, err := collection.UpdateOne(ctx, filter, update)
+	_, err = database.DB.Exec(query, newText, cID, bID)
 	if err != nil {
 		return err
 	}
-	if result.MatchedCount == 0 {
-		return mongo.ErrNoDocuments
-	}
+
 	return nil
 }
 
 // DeleteComment deletes a comment by its ID and blog ID
 func DeleteComment(blogID, commentID string) error {
-	collection, ctx, cancel := GetCollectionAndContext("comments")
-	defer cancel()
-
-	blogObjID, err := primitive.ObjectIDFromHex(blogID)
+	bID, err := strconv.Atoi(blogID)
 	if err != nil {
 		return err
 	}
-	commentObjID, err := primitive.ObjectIDFromHex(commentID)
+	cID, err := strconv.Atoi(commentID)
 	if err != nil {
 		return err
 	}
 
-	filter := bson.M{"_id": commentObjID, "blog_id": blogObjID}
-	result, err := collection.DeleteOne(ctx, filter)
+	query := `DELETE FROM comments WHERE id = $1 AND comment_blog_id = $2`
+
+	result, err := database.DB.Exec(query, cID, bID)
 	if err != nil {
 		return err
 	}
-	if result.DeletedCount == 0 {
-		return mongo.ErrNoDocuments
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("comment not found")
 	}
 	return nil
 }

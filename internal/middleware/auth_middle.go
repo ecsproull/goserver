@@ -22,7 +22,7 @@ func RequireAuth() gin.HandlerFunc {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 			// Validate the alg is what you expect:
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
@@ -44,10 +44,10 @@ func RequireAuth() gin.HandlerFunc {
 			if userID, ok := claims["user"]; ok {
 				c.Set("userID", userID)
 
-				idStr, ok := userID.(string)
-				if ok {
-					user, err := services.GetUserByID(idStr)
-					if err == nil && user != nil {
+				if f, ok := userID.(float64); ok {
+					idInt := int(f)
+					user, _ := services.GetUserByID(idInt)
+					if user != nil {
 						c.Set("user", user)
 					}
 				}

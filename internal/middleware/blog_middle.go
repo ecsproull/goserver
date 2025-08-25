@@ -53,10 +53,10 @@ func VerifyCommentOwnership() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := c.Get("user") // Set by your auth middleware
 		comment, _ := c.Get("comment")
-		u := user.(*models.User)
-		com := comment.(*models.Comment)
+		u := user.(*models.DbUser)
+		com := comment.(*models.DbComment)
 
-		isOwner := u.Name == com.CommenterName || u.Email == com.CommenterEmail
+		isOwner := u.Username == com.Name || u.Email == com.Email
 		isAdmin := u.Role == "Admin"
 
 		if !isOwner && !isAdmin {
@@ -72,10 +72,16 @@ func VerifyBlogOwnership() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := c.Get("user")
 		blog, _ := c.Get("blog")
-		u := user.(*models.User)
-		b := blog.(*models.Blog)
+		u, okUser := user.(*models.DbUser)
+		b, okBlog := blog.(*models.DbBlog)
 
-		isOwner := u.Name == b.OwnerName
+		if !okUser || !okBlog {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user or blog information"})
+			c.Abort()
+			return
+		}
+
+		isOwner := u.Username == b.AuthorID
 		isAdmin := u.Role == "Admin"
 
 		if !isOwner && !isAdmin {
