@@ -15,13 +15,7 @@ func GetBlogCommentByID(commentID string) (*models.DbComment, error) {
 	}
 
 	var comment models.DbComment
-	query := `
-        SELECT id, comment_blog_id, comment_name, comment_email, comment_body, comment_approved
-        FROM comments 
-        WHERE id = $1
-    `
-
-	err = database.DB.Get(&comment, query, id)
+	err = database.DB.Get(&comment, models.CommentQueries.GetByID, id)
 	if err != nil {
 		return nil, nil // Not found or decode error
 	}
@@ -35,29 +29,15 @@ func GetCommentsByBlogID(blogID string) ([]models.DbComment, error) {
 	}
 
 	var comments []models.DbComment
-	query := `
-        SELECT id, comment_blog_id, comment_name, comment_email, comment_body, comment_approved
-        FROM comments 
-        WHERE comment_blog_id = $1
-        ORDER BY created_at ASC
-    `
-
-	err = database.DB.Select(&comments, query, id)
+	err = database.DB.Select(&comments, models.CommentQueries.GetByBlogID, id)
 	if err != nil {
 		return nil, err
 	}
 	return comments, nil
 }
 
-// AddComment adds a new comment to the comments table
 func AddComment(comment *models.DbComment) (int, error) {
-	query := `
-        INSERT INTO comments (comment_blog_id, comment_name, comment_email, comment_body, comment_approved) 
-        VALUES ($1, $2, $3, $4, $5) 
-        RETURNING id, created_at, updated_at
-    `
-
-	err := database.DB.QueryRowx(query,
+	err := database.DB.QueryRowx(models.CommentQueries.Insert,
 		comment.BlogID,
 		comment.Name,
 		comment.Email,
@@ -71,7 +51,6 @@ func AddComment(comment *models.DbComment) (int, error) {
 	return comment.ID, nil
 }
 
-// UpdateComment updates a comment by its ID and blog ID
 func UpdateComment(blogID, commentID string, newText string) error {
 	bID, err := strconv.Atoi(blogID)
 	if err != nil {
@@ -82,14 +61,7 @@ func UpdateComment(blogID, commentID string, newText string) error {
 		return err
 	}
 
-	// Use parameterized query to avoid SQL injection
-	query := `
-        UPDATE comments 
-        SET comment_body = $1, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = $2 AND comment_blog_id = $3
-    `
-
-	_, err = database.DB.Exec(query, newText, cID, bID)
+	_, err = database.DB.Exec(models.CommentQueries.Update, newText, cID, bID)
 	if err != nil {
 		return err
 	}
@@ -97,7 +69,6 @@ func UpdateComment(blogID, commentID string, newText string) error {
 	return nil
 }
 
-// DeleteComment deletes a comment by its ID and blog ID
 func DeleteComment(blogID, commentID string) error {
 	bID, err := strconv.Atoi(blogID)
 	if err != nil {
@@ -108,9 +79,7 @@ func DeleteComment(blogID, commentID string) error {
 		return err
 	}
 
-	query := `DELETE FROM comments WHERE id = $1 AND comment_blog_id = $2`
-
-	result, err := database.DB.Exec(query, cID, bID)
+	result, err := database.DB.Exec(models.CommentQueries.Delete, cID, bID)
 	if err != nil {
 		return err
 	}

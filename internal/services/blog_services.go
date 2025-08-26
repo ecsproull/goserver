@@ -11,13 +11,7 @@ import (
 
 func GetAllBlogs() ([]models.DbBlog, error) {
 	var blogs []models.DbBlog
-
-	query := `
-        SELECT id, blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category
-        FROM blogs
-    `
-
-	err := database.DB.Select(&blogs, query)
+	err := database.DB.Select(&blogs, models.BlogQueries.GetAll)
 	if err != nil {
 		return nil, err
 	}
@@ -32,13 +26,7 @@ func GetBlogByID(id string) (*models.DbBlog, error) {
 	}
 
 	var blog models.DbBlog
-	query := `
-        SELECT id, blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category
-        FROM blogs 
-        WHERE id = $1
-    `
-
-	err = database.DB.Get(&blog, query, blogID)
+	err = database.DB.Get(&blog, models.BlogQueries.GetByID, blogID)
 	if err != nil {
 		return nil, nil // Not found or decode error
 	}
@@ -49,15 +37,8 @@ func GetBlogByID(id string) (*models.DbBlog, error) {
 func SaveBlog(data *models.DbBlog) (string, error) {
 	if data.ID != 0 {
 		// Update existing blog
-		query := `
-            UPDATE blogs 
-            SET blog_subject = $1, blog_body = $2, blog_owner_name = $3, blog_owner_email = $4, blog_category = $5, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $6
-            RETURNING id, blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category
-        `
-
 		var updatedBlog models.DbBlog
-		_, err := database.DB.Exec(query,
+		_, err := database.DB.Exec(models.BlogQueries.Update,
 			data.Title,
 			data.Content,
 			data.AuthorID,
@@ -74,13 +55,7 @@ func SaveBlog(data *models.DbBlog) (string, error) {
 	} else {
 		// Create new blog
 		log.Printf("Creating new blog post.")
-		query := `
-            INSERT INTO blogs (blog_subject, blog_body, blog_owner_name, blog_owner_email, blog_category) 
-            VALUES ($1, $2, $3, $4, $5) 
-            RETURNING id
-        `
-
-		err := database.DB.QueryRowx(query,
+		err := database.DB.QueryRowx(models.BlogQueries.Insert,
 			data.Title,
 			data.Content,
 			data.AuthorID,
@@ -103,9 +78,7 @@ func DeleteBlog(id string) error {
 		return err
 	}
 
-	query := `DELETE FROM blogs WHERE id = $1`
-
-	result, err := database.DB.Exec(query, blogID)
+	result, err := database.DB.Exec(models.BlogQueries.Delete, blogID)
 	if err != nil {
 		return err
 	}

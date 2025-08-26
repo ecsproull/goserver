@@ -15,14 +15,7 @@ import (
 // GetAllUsers retrieves all users from PostgreSQL
 func GetAllUsers() ([]models.DbUser, error) {
 	var users []models.DbUser
-
-	query := `
-        SELECT id, user_name, user_email, user_role, user_approved, created_at, updated_at 
-        FROM users 
-        ORDER BY created_at DESC
-    `
-
-	err := database.DB.Select(&users, query)
+	err := database.DB.Select(&users, models.UserQueries.GetAll)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %v", err)
 	}
@@ -33,14 +26,7 @@ func GetAllUsers() ([]models.DbUser, error) {
 // GetUserByID retrieves a user by ID from PostgreSQL
 func GetUserByID(id int) (*models.DbUser, error) {
 	var user models.DbUser
-
-	query := `
-        SELECT id, user_name, user_email, user_role, created_at, updated_at 
-        FROM users 
-        WHERE id = $1
-    `
-
-	err := database.DB.Get(&user, query, id)
+	err := database.DB.Get(&user, models.UserQueries.GetByID, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %v", err)
 	}
@@ -51,14 +37,7 @@ func GetUserByID(id int) (*models.DbUser, error) {
 // GetUserByUsername retrieves a user by username
 func GetUserByUsername(username string) (*models.DbUser, error) {
 	var user models.DbUser
-
-	query := `
-        SELECT id, user_name, user_password, user_email, user_role, created_at, updated_at 
-        FROM users 
-        WHERE user_name = $1
-    `
-
-	err := database.DB.Get(&user, query, username)
+	err := database.DB.Get(&user, models.UserQueries.GetByName, username)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %v", err)
 	}
@@ -68,11 +47,8 @@ func GetUserByUsername(username string) (*models.DbUser, error) {
 
 // CreateUser creates a new user in PostgreSQL
 func CreateUser(user *models.DbUser) error {
-	query_exists := `
-        SELECT id FROM users WHERE user_name = $1 OR user_email = $2
-    `
 	var existingUser models.DbUser
-	err := database.DB.Get(&existingUser, query_exists, user.Username, user.Email)
+	err := database.DB.Get(&existingUser, models.UserQueries.CheckExists, user.Username, user.Email)
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("user already exists: %v", err)
 	} else if err == nil {
@@ -92,14 +68,7 @@ func CreateUser(user *models.DbUser) error {
 	}
 	user.Password = string(salt)
 	user.VerifyExpires = time.Now().Add(24 * time.Hour)
-
-	query := `
-        INSERT INTO users (user_name, user_password, user_email, user_role, user_verify_code, user_verify_expires) 
-        VALUES ($1, $2, $3, $4, $5, $6) 
-        RETURNING id, created_at, updated_at
-    `
-
-	err = database.DB.QueryRowx(query, user.Username, user.Password, user.Email, user.Role, user.VerifyCode, user.VerifyExpires).
+	err = database.DB.QueryRowx(models.UserQueries.Insert, user.Username, user.Password, user.Email, user.Role, user.VerifyCode, user.VerifyExpires).
 		Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
@@ -112,14 +81,7 @@ func CreateUser(user *models.DbUser) error {
 
 // UpdateUser updates an existing user in PostgreSQL
 func UpdateUser(id int, user *models.DbUser) error {
-	query := `
-        UPDATE users 
-        SET user_name = $1, user_email = $2, user_role = $3, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $4
-        RETURNING updated_at
-    `
-
-	err := database.DB.QueryRowx(query, user.Username, user.Email, user.Role, id).
+	err := database.DB.QueryRowx(models.UserQueries.Update, user.Username, user.Email, user.Role, id).
 		Scan(&user.UpdatedAt)
 
 	if err != nil {
@@ -131,13 +93,7 @@ func UpdateUser(id int, user *models.DbUser) error {
 
 // UpdateUserPassword updates a user's password
 func UpdateUserPassword(id int, passwordHash string) error {
-	query := `
-        UPDATE users 
-        SET user_password = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-    `
-
-	_, err := database.DB.Exec(query, passwordHash, id)
+	_, err := database.DB.Exec(models.UserQueries.UpdatePassword, passwordHash, id)
 	if err != nil {
 		return fmt.Errorf("failed to update password: %v", err)
 	}
@@ -147,9 +103,7 @@ func UpdateUserPassword(id int, passwordHash string) error {
 
 // DeleteUser deletes a user from PostgreSQL
 func DeleteUser(id int) error {
-	query := `DELETE FROM users WHERE id = $1`
-
-	result, err := database.DB.Exec(query, id)
+	result, err := database.DB.Exec(models.UserQueries.Delete, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %v", err)
 	}
@@ -169,14 +123,7 @@ func DeleteUser(id int) error {
 // AuthenticateUser checks user credentials
 func AuthenticateUser(username string) (*models.DbUser, error) {
 	var user models.DbUser
-
-	query := `
-        SELECT id, user_name, user_password, user_email, user_role, created_at, updated_at 
-        FROM users 
-        WHERE user_name = $1
-    `
-
-	err := database.DB.Get(&user, query, username)
+	err := database.DB.Get(&user, models.UserQueries.Authenticate, username)
 	if err != nil {
 		return nil, fmt.Errorf("user not found")
 	}
@@ -186,16 +133,7 @@ func AuthenticateUser(username string) (*models.DbUser, error) {
 
 func VerifyUserEmail(code string) (*models.DbUser, error) {
 	var user models.DbUser
-
-	// First, find the user by verification code
-	query := `
-        SELECT id, user_name, user_password, user_email, user_role, 
-               user_approved, user_verify_code, user_verify_expires
-        FROM users 
-        WHERE user_verify_code = $1
-    `
-
-	err := database.DB.Get(&user, query, code)
+	err := database.DB.Get(&user, models.UserQueries.FindByVerificationCode, code)
 	if err != nil {
 		return nil, errors.New("invalid verification code")
 	}
@@ -205,18 +143,7 @@ func VerifyUserEmail(code string) (*models.DbUser, error) {
 		return nil, errors.New("verification code has expired")
 	}
 
-	// Approve user and clear verification code
-	updateQuery := `
-        UPDATE users 
-        SET user_approved = true, 
-            user_verify_code = NULL, 
-            user_verify_expires = NULL, 
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-        RETURNING updated_at
-    `
-
-	err = database.DB.QueryRowx(updateQuery, user.ID).Scan(&user.UpdatedAt)
+	err = database.DB.QueryRowx(models.UserQueries.ApproveUser, user.ID).Scan(&user.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user verification: %v", err)
 	}
