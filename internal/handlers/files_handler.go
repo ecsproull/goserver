@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"os"
 
@@ -89,6 +90,7 @@ func (h *FileHandler) DownloadDirectory(c *gin.Context) {
 	dirName := c.Param("dirName")
 
 	dirPath := services.GetDirPath(yearMake, model, dirName)
+	log.Printf("Downloading directory: %s", dirPath)
 	zipPath, err := services.CreateZipFromDirectory(dirPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

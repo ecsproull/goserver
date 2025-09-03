@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"goserver/internal/config"
 	"goserver/internal/database"
@@ -11,6 +12,15 @@ import (
 )
 
 func main() {
+	// open (or create) log file, append mode
+	f, err := os.OpenFile("goserver.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		log.Fatalf("failed to open log file: %v", err)
+	}
+	// keep file open for lifetime of process (don't defer f.Close() here if server runs)
+	log.SetOutput(f)
+
+	log.Printf("server starting...")
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found or error loading .env file")
 	}

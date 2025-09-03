@@ -6,7 +6,6 @@ import (
 
 type Config struct {
 	Port              string
-	DatabaseURL       string
 	JWTSecret         string
 	SendGridAPIKey    string
 	SendGridFromEmail string
@@ -17,7 +16,6 @@ type Config struct {
 func Load() *Config {
 	return &Config{
 		Port:              getEnv("PORT", "3003"),
-		DatabaseURL:       getEnv("DATABASE_URL", ""),
 		JWTSecret:         getEnv("JWT_SECRET", "your-secret-key"),
 		SendGridAPIKey:    getEnv("SENDGRID_API_KEY", ""),
 		SendGridFromEmail: getEnv("SENDGRID_FROM_EMAIL", ""),

@@ -51,6 +51,7 @@ func SendWelcomeEmail(userEmail, userName string) error {
             <h1>Welcome %s!</h1>
             <p>Thank you for joining our platform.</p>
             <p>Best regards,<br>The Team</p>
+						<p><b>If you need permissions to comment on blog posts or download files, reply to this email.</b></p>
         `, userName),
 	})
 

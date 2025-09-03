@@ -1,6 +1,7 @@
 package router
 
 import (
+	"goserver/internal/config"
 	"goserver/internal/handlers"
 	"goserver/internal/middleware"
 	"log"
@@ -11,10 +12,11 @@ import (
 
 func SetupRouter() *gin.Engine {
 	router := gin.Default()
+	cfg := config.Load()
 
 	// CORS middleware
 	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "http://localhost:3001")
+		c.Header("Access-Control-Allow-Origin", cfg.FrontendURL)
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
 		c.Header("Access-Control-Allow-Credentials", "true")
